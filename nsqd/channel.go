@@ -35,9 +35,10 @@ type Consumer interface {
 // messages, timeouts, requeuing, etc.
 type Channel struct {
 	// 64bit atomic vars need to be first for proper alignment on 32bit platforms
-	requeueCount uint64
-	messageCount uint64
-	timeoutCount uint64
+	requeueCount        uint64
+	messageCount        uint64
+	messageDroppedCount uint64
+	timeoutCount        uint64
 
 	sync.RWMutex
 
@@ -121,13 +122,14 @@ func NewChannel(topicName string, channelName string, ctx *context,
 func (c *Channel) initPQ() {
 	pqSize := int(math.Max(1, float64(c.ctx.nsqd.getOpts().MemQueueSize)/10))
 
-	c.inFlightMutex.Lock()
 	c.inFlightMessages = make(map[MessageID]*Message)
+	c.deferredMessages = make(map[MessageID]*pqueue.Item)
+
+	c.inFlightMutex.Lock()
 	c.inFlightPQ = newInFlightPqueue(pqSize)
 	c.inFlightMutex.Unlock()
 
 	c.deferredMutex.Lock()
-	c.deferredMessages = make(map[MessageID]*pqueue.Item)
 	c.deferredPQ = pqueue.New(pqSize)
 	c.deferredMutex.Unlock()
 }
@@ -179,7 +181,8 @@ func (c *Channel) exit(deleted bool) error {
 	}
 
 	// write anything leftover to disk
-	c.flush()
+	//TODO: do not write anything to disk any more
+	//c.flush()
 	return c.backend.Close()
 }
 
@@ -299,21 +302,33 @@ func (c *Channel) PutMessage(m *Message) error {
 	return nil
 }
 
+//TODO: write msg to memory or disk
 func (c *Channel) put(m *Message) error {
-	select {
-	case c.memoryMsgChan <- m:
-	default:
-		b := bufferPoolGet()
-		err := writeMessageToBackend(b, m, c.backend)
-		bufferPoolPut(b)
-		c.ctx.nsqd.SetHealth(err)
-		if err != nil {
-			c.ctx.nsqd.logf(LOG_ERROR, "CHANNEL(%s): failed to write message to backend - %s",
-				c.name, err)
-			return err
-		}
+
+	if len(c.memoryMsgChan) == int(MemQueueSize) {
+		expired := <-c.memoryMsgChan
+		c.ctx.nsqd.logf(LOG_WARN,
+			"CHANNEL(%s) WARN: size of memoryMsgChan reach the max size - %s than we drop the msg - %s",
+			c.name, MemQueueSize, string(expired.Body))
+		atomic.AddUint64(&c.messageDroppedCount, 1)
 	}
+	c.memoryMsgChan <- m
 	return nil
+	//select {
+	//case c.memoryMsgChan <- m:
+	//default:
+	//	//TODO: need to remove
+	//	b := bufferPoolGet()
+	//	err := writeMessageToBackend(b, m, c.backend)
+	//	bufferPoolPut(b)
+	//	c.ctx.nsqd.SetHealth(err)
+	//	if err != nil {
+	//		c.ctx.nsqd.logf(LOG_ERROR, "CHANNEL(%s): failed to write message to backend - %s",
+	//			c.name, err)
+	//		return err
+	//	}
+	//}
+	//return nil
 }
 
 func (c *Channel) PutMessageDeferred(msg *Message, timeout time.Duration) {

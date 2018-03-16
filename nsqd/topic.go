@@ -18,6 +18,8 @@ type Topic struct {
 	// 64bit atomic vars need to be first for proper alignment on 32bit platforms
 	messageCount uint64
 
+	messageDropped uint64
+
 	sync.RWMutex
 
 	name              string
@@ -40,6 +42,8 @@ type Topic struct {
 	ctx *context
 }
 
+var MemQueueSize int64 = 10000
+
 // Topic constructor
 func NewTopic(topicName string, ctx *context, deleteCallback func(*Topic)) *Topic {
 	t := &Topic{
@@ -58,6 +62,7 @@ func NewTopic(topicName string, ctx *context, deleteCallback func(*Topic)) *Topi
 		t.ephemeral = true
 		t.backend = newDummyBackendQueue()
 	} else {
+		//TODO: new disk queue for msg
 		dqLogf := func(level diskqueue.LogLevel, f string, args ...interface{}) {
 			opts := ctx.nsqd.getOpts()
 			lg.Logf(opts.Logger, opts.logLevel, lg.LogLevel(level), f, args...)
@@ -77,6 +82,8 @@ func NewTopic(topicName string, ctx *context, deleteCallback func(*Topic)) *Topi
 	t.waitGroup.Wrap(func() { t.messagePump() })
 
 	t.ctx.nsqd.Notify(t)
+
+	MemQueueSize = ctx.nsqd.getOpts().MemQueueSize
 
 	return t
 }
@@ -194,24 +201,38 @@ func (t *Topic) PutMessages(msgs []*Message) error {
 	return nil
 }
 
+//TODO: write msg to memory or disk
 func (t *Topic) put(m *Message) error {
-	select {
-	case t.memoryMsgChan <- m:
-	default:
-		b := bufferPoolGet()
-		err := writeMessageToBackend(b, m, t.backend)
-		bufferPoolPut(b)
-		t.ctx.nsqd.SetHealth(err)
-		if err != nil {
-			t.ctx.nsqd.logf(LOG_ERROR,
-				"TOPIC(%s) ERROR: failed to write message to backend - %s",
-				t.name, err)
-			return err
-		}
+	if len(t.memoryMsgChan) == int(MemQueueSize) {
+		expired := <-t.memoryMsgChan
+		t.ctx.nsqd.logf(LOG_WARN,
+			"TOPIC(%s) WARN: size of memoryMsgChan reach the max size - %s than we drop the msg - %s",
+			t.name, MemQueueSize, string(expired.Body))
+		atomic.AddUint64(&t.messageDropped, 1)
 	}
+	t.memoryMsgChan <- m
 	return nil
+
+	//select {
+	////write msg to memory
+	//case t.memoryMsgChan <- m:
+	//default:
+	//	//TODO: write msg to disk queue
+	//	b := bufferPoolGet()
+	//	err := writeMessageToBackend(b, m, t.backend)
+	//	bufferPoolPut(b)
+	//	t.ctx.nsqd.SetHealth(err)
+	//	if err != nil {
+	//		t.ctx.nsqd.logf(LOG_ERROR,
+	//			"TOPIC(%s) ERROR: failed to write message to backend - %s",
+	//			t.name, err)
+	//		return err
+	//	}
+	//}
+	//return nil
 }
 
+//TODO: return the sum of msg in memory and disk
 func (t *Topic) Depth() int64 {
 	return int64(len(t.memoryMsgChan)) + t.backend.Depth()
 }
@@ -233,19 +254,24 @@ func (t *Topic) messagePump() {
 	t.RUnlock()
 
 	if len(chans) > 0 {
+		//get queue of msg in memory
 		memoryMsgChan = t.memoryMsgChan
+		//get queue of msg in disk
 		backendChan = t.backend.ReadChan()
 	}
 
 	for {
 		select {
+		//randomly to get the msg in memory and disk to publish???
 		case msg = <-memoryMsgChan:
+			//need remove the way to get msg that keep us get msg always in the memory
 		case buf = <-backendChan:
 			msg, err = decodeMessage(buf)
 			if err != nil {
 				t.ctx.nsqd.logf(LOG_ERROR, "failed to decode message - %s", err)
 				continue
 			}
+			//receive the signal of new channel join the topic
 		case <-t.channelUpdateChan:
 			chans = chans[:0]
 			t.RLock()
@@ -261,15 +287,19 @@ func (t *Topic) messagePump() {
 				backendChan = t.backend.ReadChan()
 			}
 			continue
+			//receive the signal of pause or start the topic
 		case pause := <-t.pauseChan:
 			if pause || len(chans) == 0 {
+				//stop the topic
 				memoryMsgChan = nil
 				backendChan = nil
 			} else {
+				//restart the topic
 				memoryMsgChan = t.memoryMsgChan
 				backendChan = t.backend.ReadChan()
 			}
 			continue
+			//stop to publish msg to channels
 		case <-t.exitChan:
 			goto exit
 		}
@@ -286,6 +316,7 @@ func (t *Topic) messagePump() {
 				chanMsg.deferred = msg.deferred
 			}
 			if chanMsg.deferred != 0 {
+				//TODO: ???
 				channel.PutMessageDeferred(chanMsg, chanMsg.deferred)
 				continue
 			}
@@ -372,6 +403,7 @@ finish:
 	return t.backend.Empty()
 }
 
+//flush write msg in memory to disk
 func (t *Topic) flush() error {
 	var msgBuf bytes.Buffer
 

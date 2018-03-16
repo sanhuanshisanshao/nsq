@@ -154,6 +154,7 @@ func TestCreateTopic(t *testing.T) {
 
 	req, _ = http.NewRequest("POST", url, nil)
 	resp, err = client.Do(req)
+
 	test.Nil(t, err)
 	test.Equal(t, 200, resp.StatusCode)
 	body, _ = ioutil.ReadAll(resp.Body)

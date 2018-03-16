@@ -450,7 +450,7 @@ func (c *ClusterInfo) GetNSQDTopicProducers(topic string, nsqdHTTPAddrs []string
 		go func(addr string) {
 			defer wg.Done()
 
-			endpoint := fmt.Sprintf("http://%s/stats?format=json&topic=%s", addr, url.QueryEscape(topic))
+			endpoint := fmt.Sprintf("http://%s/stats?format=json&topic=%s", addr, topic)
 			c.logf("CI: querying nsqd %s", endpoint)
 
 			var statsResp statsRespType
@@ -552,14 +552,15 @@ func (c *ClusterInfo) GetNSQDStats(producers Producers, selectedTopic string, se
 
 			endpoint := fmt.Sprintf("http://%s/stats?format=json", addr)
 			if selectedTopic != "" {
-				endpoint += "&topic=" + url.QueryEscape(selectedTopic)
+				endpoint += "&topic=" + selectedTopic
 				if selectedChannel != "" {
-					endpoint += "&channel=" + url.QueryEscape(selectedChannel)
+					endpoint += "&channel=" + selectedChannel
 				}
 			}
 
 			c.logf("CI: querying nsqd %s", endpoint)
 
+			//TODO: response
 			var resp respType
 			err := c.client.GETV1(endpoint, &resp)
 			if err != nil {

@@ -168,6 +168,7 @@
                 <th>Deferred</th>
                 <th>Requeued</th>
                 <th>Timed Out</th>
+                <th>Dropped</th>
                 <th>Messages</th>
                 <th>Connections</th>
                 {{#each e2e_processing_latency.percentiles}}
@@ -187,6 +188,7 @@
                 <td>{{commafy deferred_count}}</td>
                 <td>{{commafy requeue_count}}</td>
                 <td>{{commafy timeout_count}}</td>
+                <td>{{commafy message_dropped_count}}</td>
                 <td>{{commafy message_count}}</td>
                 <td>{{commafy clients.length}}</td>
                 {{#if e2e_processing_latency.percentiles.length}}
@@ -206,6 +208,7 @@
                 <td><a href="{{large_graph "channel" node topic_name channel_name "deferred_count"}}"><img width="120" height="20"  src="{{sparkline "channel" node topic_name channel_name "deferred_count"}}"></a></td>
                 <td><a href="{{large_graph "channel" node topic_name channel_name "requeue_count"}}"><img width="120" height="20"  src="{{sparkline "channel" node topic_name channel_name "requeue_count"}}"></a></td>
                 <td><a href="{{large_graph "channel" node topic_name channel_name "timeout_count"}}"><img width="120" height="20"  src="{{sparkline "channel" node topic_name channel_name "timeout_count"}}"></a></td>
+                <td><a href="{{large_graph "channel" node topic_name channel_name "message_dropped_count"}}"><img width="120" height="20"  src="{{sparkline "channel" node topic_name channel_name "message_dropped_count"}}"></a></td>
                 <td><a href="{{large_graph "channel" node topic_name channel_name "message_count"}}"><img width="120" height="20"  src="{{sparkline "channel" node topic_name channel_name "message_count"}}"></a></td>
                 <td><a href="{{large_graph "channel" node topic_name channel_name "clients"}}"><img width="120" height="20"  src="{{sparkline "channel" node topic_name channel_name "clients"}}"></a></td>
                 {{#if e2e_processing_latency.percentiles.length}}

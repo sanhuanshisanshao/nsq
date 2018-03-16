@@ -64,7 +64,6 @@ func (t *TopicDiscoverer) poller(addrs []string, sync bool, pattern string) {
 	if sync {
 		ticker = time.Tick(*topicPollRate)
 	}
-forloop:
 	for {
 		select {
 		case <-ticker:
@@ -78,7 +77,7 @@ forloop:
 			for _, cfl := range t.topics {
 				close(cfl.F.termChan)
 			}
-			break forloop
+			break
 		case <-t.hupChan:
 			for _, cfl := range t.topics {
 				cfl.F.hupChan <- true

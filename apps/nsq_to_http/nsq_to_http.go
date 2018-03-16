@@ -11,7 +11,6 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
-	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -24,7 +23,6 @@ import (
 	"github.com/bitly/timer_metrics"
 	"github.com/nsqio/go-nsq"
 	"github.com/nsqio/nsq/internal/app"
-	"github.com/nsqio/nsq/internal/http_api"
 	"github.com/nsqio/nsq/internal/version"
 )
 
@@ -172,8 +170,6 @@ func main() {
 
 	flag.Var(&nsq.ConfigFlag{cfg}, "consumer-opt", "option to passthrough to nsq.Consumer (may be given multiple times, http://godoc.org/github.com/nsqio/go-nsq#Config)")
 	flag.Parse()
-
-	httpclient = &http.Client{Transport: http_api.NewDeadlineTransport(*httpConnectTimeout, *httpRequestTimeout), Timeout: *httpRequestTimeout}
 
 	if *showVersion {
 		fmt.Printf("nsq_to_http v%s\n", version.Binary)

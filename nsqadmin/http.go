@@ -93,6 +93,7 @@ func NewHTTPServer(ctx *Context) *httpServer {
 
 	// v1 endpoints
 	router.Handle("GET", "/api/topics", http_api.Decorate(s.topicsHandler, log, http_api.V1))
+	//TODO: ../api/topics/application_tx
 	router.Handle("GET", "/api/topics/:topic", http_api.Decorate(s.topicHandler, log, http_api.V1))
 	router.Handle("GET", "/api/topics/:topic/:channel", http_api.Decorate(s.channelHandler, log, http_api.V1))
 	router.Handle("GET", "/api/nodes", http_api.Decorate(s.nodesHandler, log, http_api.V1))
@@ -251,6 +252,7 @@ func (s *httpServer) topicHandler(w http.ResponseWriter, req *http.Request, ps h
 		s.ctx.nsqadmin.logf(LOG_WARN, "%s", err)
 		messages = append(messages, pe.Error())
 	}
+	//TODO: get topic message queue
 	topicStats, _, err := s.ci.GetNSQDStats(producers, topicName, "")
 	if err != nil {
 		pe, ok := err.(clusterinfo.PartialErr)

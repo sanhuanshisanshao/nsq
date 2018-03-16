@@ -120,10 +120,10 @@ func (p *protocolV2) IOLoop(conn net.Conn) error {
 	return err
 }
 
-func (p *protocolV2) SendMessage(client *clientV2, msg *Message) error {
+func (p *protocolV2) SendMessage(client *clientV2, msg *Message, buf *bytes.Buffer) error {
 	p.ctx.nsqd.logf(LOG_DEBUG, "PROTOCOL(V2): writing msg(%s) to client(%s) - %s", msg.ID, client, msg.Body)
-	var buf = &bytes.Buffer{}
 
+	buf.Reset()
 	_, err := msg.WriteTo(buf)
 	if err != nil {
 		return err
@@ -199,6 +199,7 @@ func (p *protocolV2) Exec(client *clientV2, params [][]byte) ([]byte, error) {
 
 func (p *protocolV2) messagePump(client *clientV2, startedChan chan bool) {
 	var err error
+	var buf bytes.Buffer
 	var memoryMsgChan chan *Message
 	var backendMsgChan chan []byte
 	var subChannel *Channel
@@ -311,7 +312,7 @@ func (p *protocolV2) messagePump(client *clientV2, startedChan chan bool) {
 
 			subChannel.StartInFlightTimeout(msg, client.ID, msgTimeout)
 			client.SendingMessage()
-			err = p.SendMessage(client, msg)
+			err = p.SendMessage(client, msg, &buf)
 			if err != nil {
 				goto exit
 			}
@@ -324,7 +325,7 @@ func (p *protocolV2) messagePump(client *clientV2, startedChan chan bool) {
 
 			subChannel.StartInFlightTimeout(msg, client.ID, msgTimeout)
 			client.SendingMessage()
-			err = p.SendMessage(client, msg)
+			err = p.SendMessage(client, msg, &buf)
 			if err != nil {
 				goto exit
 			}

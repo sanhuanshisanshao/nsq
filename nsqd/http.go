@@ -59,6 +59,7 @@ func newHTTPServer(ctx *context, tlsEnabled bool, tlsRequired bool) *httpServer 
 	// v1 negotiate
 	router.Handle("POST", "/pub", http_api.Decorate(s.doPUB, http_api.V1))
 	router.Handle("POST", "/mpub", http_api.Decorate(s.doMPUB, http_api.V1))
+	//TODO: nsqadmin
 	router.Handle("GET", "/stats", http_api.Decorate(s.doStats, log, http_api.V1))
 
 	// only v1
@@ -470,6 +471,7 @@ func (s *httpServer) doPauseChannel(w http.ResponseWriter, req *http.Request, ps
 	return nil, nil
 }
 
+//doStats get topics and channels stats
 func (s *httpServer) doStats(w http.ResponseWriter, req *http.Request, ps httprouter.Params) (interface{}, error) {
 	reqParams, err := http_api.NewReqParams(req)
 	if err != nil {
@@ -524,6 +526,7 @@ func (s *httpServer) doStats(w http.ResponseWriter, req *http.Request, ps httpro
 	}{version.Binary, health, startTime.Unix(), stats, ms}, nil
 }
 
+//TODO: return stats
 func (s *httpServer) printStats(stats []TopicStats, ms memStats, health string, startTime time.Time, uptime time.Duration) []byte {
 	var buf bytes.Buffer
 	w := &buf
@@ -560,6 +563,8 @@ func (s *httpServer) printStats(stats []TopicStats, ms memStats, health string, 
 			t.Depth,
 			t.BackendDepth,
 			t.MessageCount,
+			//TODO:MessageDroppedCount
+			//t.MessageDroppedCount,
 			t.E2eProcessingLatency))
 		for _, c := range t.Channels {
 			if c.Paused {
